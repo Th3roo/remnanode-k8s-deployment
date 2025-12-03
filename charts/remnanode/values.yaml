@@ -1,26 +1,29 @@
-# Настройки образа сайта (из твоего первого репо)
 website:
   image: th3ro/remnanode_website:latest
   pullPolicy: Always
 
-# Настройки Remnanode
 node:
   image: remnawave/node:latest
   apiPort: 2222
-  # Порты для Xray (должны совпадать с панелью)
-  ports:
-    reality: 10000
-    mixed: 10001
 
-# Домены
-domain:
-  main: "your_domain.com" # Твой домен
-  reality: # Домены для SNI роутинга (маскировка)
-    - "microsoft.com"
-    - "dl.google.com"
-
-# Email для SSL (Let's Encrypt)
+# Главный домен для панели/сайта
+domain: "example.com"
 email: "admin@example.com"
 
-# Секреты (оставляем пустыми, перезапишем через secrets.yaml)
 secretKey: ""
+
+# ГИБКАЯ НАСТРОЙКА ВХОДЯЩИХ СОЕДИНЕНИЙ
+# mode:
+#   - ingress: скрывает трафик за 443 портом (требует sni_domains)
+#   - direct: открывает порт прямо на хосте (через hostPort/NodePort)
+inbounds: []
+# Пример (будет в secrets.yaml):
+# - name: reality
+#   port: 10000        # Порт внутри контейнера
+#   mode: ingress      # Работает через Traefik (443)
+#   sni:               # Домены для маскировки
+#     - google.com
+# - name: mixed
+#   port: 10001        # Порт внутри и снаружи
+#   mode: direct       # Открыт напрямую
+#   protocol: TCP      # TCP/UDP

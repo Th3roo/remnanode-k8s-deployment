@@ -1,4 +1,4 @@
-# 1. HTTPS для сайта (TLS termination)
+# 1. HTTPS для сайта
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
@@ -7,7 +7,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`{{ .Values.domain.main }}`)
+    - match: Host(`{{ .Values.domain }}`)
       kind: Rule
       services:
         - name: {{ .Release.Name }}
@@ -16,18 +16,25 @@ spec:
     certResolver: le
 
 ---
-# 2. TCP Passthrough для Reality (маскировка)
+# 2. TCP Passthrough для Reality
+# Генерируем IngressRouteTCP только для инбаундов с mode: ingress
+{{- range .Values.inbounds }}
+{{- if eq .mode "ingress" }}
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRouteTCP
 metadata:
-  name: {{ .Release.Name }}-reality
+  name: {{ $.Release.Name }}-{{ .name }}
 spec:
   entryPoints:
-    - websecure
+    - websecure # Слушаем на 443
   routes:
-    - match: {{ range $i, $d := .Values.domain.reality }}{{ if $i }} || {{ end }}HostSNI(`{{ $d }}`){{ end }}
+    # Собираем все домены SNI через OR (||)
+    - match: {{ range $i, $d := .sni }}{{ if $i }} || {{ end }}HostSNI(`{{ $d }}`){{ end }}
       services:
-        - name: {{ .Release.Name }}
-          port: {{ .Values.node.ports.reality }}
+        - name: {{ $.Release.Name }}
+          port: {{ .port }}
   tls:
     passthrough: true
+---
+{{- end }}
+{{- end }}

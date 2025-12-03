@@ -7,10 +7,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0 # Не убивать старый, пока не поднимется новый
-      maxSurge: 1       # Создавать 1 временный под для обновления
+    type: Recreate # Для Xray лучше Recreate, чтобы не занимать порты дважды
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -19,12 +16,10 @@ spec:
       labels:
         app: {{ .Release.Name }}
       annotations:
-        # Хак: заставляем кубер пересоздавать под, если изменились ссылки на базы
         checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: {{ .Release.Name }}-updater # Нужно для CronJob, создадим ниже
+      serviceAccountName: {{ .Release.Name }}-updater
       
-      # --- 1. InitContainer: Качает базы ПЕРЕД запуском Xray ---
       initContainers:
       - name: db-downloader
         image: alpine:latest
@@ -37,21 +32,17 @@ spec:
             wget -qO /data/zapret.dat https://github.com/kutovoys/ru_gov_zapret/releases/latest/download/zapret.dat
             wget -qO /data/geoip.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat
             wget -qO /data/geosite.dat https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat
-            echo ">>> Done."
         volumeMounts:
         - name: xray-data
           mountPath: /data
 
       containers:
-        # --- 2. Website (без изменений) ---
         - name: website
           image: {{ .Values.website.image }}
-          imagePullPolicy: {{ .Values.website.pullPolicy }}
           ports:
             - containerPort: 80
               name: http
 
-        # --- 3. Remnanode ---
         - name: remnanode
           image: {{ .Values.node.image }}
           securityContext:
@@ -65,16 +56,19 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: SECRET_KEY
-            # Говорим Xray искать базы в нашей папке
             - name: XRAY_LOCATION_ASSET
               value: /usr/local/bin
           ports:
-            - containerPort: {{ .Values.node.ports.reality }}
-              name: reality
-            - containerPort: {{ .Values.node.ports.mixed }}
-              name: mixed
+            # --- АВТОМАТИЧЕСКАЯ ГЕНЕРАЦИЯ ПОРТОВ ---
+            {{- range .Values.inbounds }}
+            - containerPort: {{ .port }}
+              name: {{ .name }}
+              {{- if eq .mode "direct" }}
+              hostPort: {{ .port }} # Важно! Биндим порт прямо на хост, минуя Ingress (максимальная скорость)
+              {{- end }}
+              protocol: {{ default "TCP" .protocol }}
+            {{- end }}
           volumeMounts:
-            # Монтируем скачанные базы поверх стандартной папки
             - name: xray-data
               mountPath: /usr/local/bin/geoip.dat
               subPath: geoip.dat
@@ -85,7 +79,6 @@ spec:
               mountPath: /usr/local/bin/zapret.dat
               subPath: zapret.dat
 
-      # --- 4. Тома ---
       volumes:
       - name: xray-data
-        emptyDir: {} # Временная папка в памяти
+        emptyDir: {}
