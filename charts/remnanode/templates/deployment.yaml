@@ -41,7 +41,7 @@ spec:
         # 1. Website Sidecar
         - name: website
           image: {{ .Values.website.image }}
-          pullPolicy: {{ .Values.website.pullPolicy }}
+          imagePullPolicy: {{ .Values.website.pullPolicy }}
           ports:
             - containerPort: 80
               name: http
