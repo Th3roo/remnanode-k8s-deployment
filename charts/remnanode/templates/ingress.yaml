@@ -1,7 +1,7 @@
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: {{ .Release.Name }}-sts-headers
+  name: {{ .Release.Name }}-ws-headers
 spec:
   headers:
     customRequestHeaders:
@@ -10,7 +10,7 @@ spec:
       Connection: "Upgrade"
 
 ---
-# 1. Основной сайт (заглушка)
+# 1. Основной сайт
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -28,7 +28,7 @@ spec:
     certResolver: le
 
 ---
-# 2. Обработка WebSocket / XHTTP (Path routing)
+# 2. WebSocket
 {{- range .Values.inbounds }}
 {{- if eq .mode "ingress-path" }}
 apiVersion: traefik.io/v1alpha1
@@ -39,11 +39,10 @@ spec:
   entryPoints:
     - websecure
   routes:
-    # Матчим по домену и пути
     - match: Host(`{{ $.Values.domain }}`) && PathPrefix(`{{ .path }}`)
       kind: Rule
       middlewares:
-        - name: {{ $.Release.Name }}-sts-headers
+        - name: {{ $.Release.Name }}-ws-headers
       services:
         - name: {{ $.Release.Name }}
           port: {{ .port }}
@@ -54,7 +53,30 @@ spec:
 {{- end }}
 {{- end }}
 
-# 3. Обработка gRPC
+# 3. XHTTP
+{{- range .Values.inbounds }}
+{{- if eq .mode "ingress-xhttp" }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ $.Release.Name }}-{{ .name }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ $.Values.domain }}`) && PathPrefix(`{{ .path }}`)
+      kind: Rule
+      services:
+        - name: {{ $.Release.Name }}
+          port: {{ .port }}
+          passHostHeader: true
+  tls:
+    certResolver: le
+---
+{{- end }}
+{{- end }}
+
+# 4. gRPC
 {{- range .Values.inbounds }}
 {{- if eq .mode "ingress-grpc" }}
 apiVersion: traefik.io/v1alpha1
@@ -65,7 +87,6 @@ spec:
   entryPoints:
     - websecure
   routes:
-    # gRPC роутинг идет по ServiceName.
     - match: Host(`{{ $.Values.domain }}`) && PathPrefix(`/{{ .serviceName }}`)
       kind: Rule
       services:
@@ -79,7 +100,7 @@ spec:
 {{- end }}
 {{- end }}
 
-# 4. Обработка Reality/Trojan (SNI Routing)
+# 5. Reality/Trojan (SNI)
 {{- range .Values.inbounds }}
 {{- if eq .mode "ingress-sni" }}
 apiVersion: traefik.io/v1alpha1
