@@ -26,7 +26,7 @@ Designed for Remnawave Controller
 1. **Clone the repository:**
 
     ```bash
-    git clone https://github.com/yourusername/remnanode_k3s.git
+    git clone https://github.com/Th3roo/remnanode_k3s.git
     cd remnanode_k3s
     ```
 
