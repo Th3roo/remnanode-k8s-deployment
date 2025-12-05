@@ -63,7 +63,7 @@ Define your inbounds in the `inbounds` list. The deployment script will automati
 When configuring Inbounds in the Remnawave Panel:
 
 1. **Listen IP:** Always set to `0.0.0.0`
-2. **Security:** Set to `none` (Traefik handles TLS termination). And set TLS in remnaware panel
+2. **Security:** Set to `none` (Traefik handles TLS termination). And set TLS in remnaware panel advanced host settings
 3. **Sniffing:**
     * **Reality/Shadowsocks:** Can be Enabled
     * **gRPC/XHTTP:** **MUST be Disabled**
