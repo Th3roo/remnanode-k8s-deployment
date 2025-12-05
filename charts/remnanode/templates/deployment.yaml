@@ -59,11 +59,17 @@ spec:
             - name: XRAY_LOCATION_ASSET
               value: /usr/local/bin
           ports:
-            # --- АВТОМАТИЧЕСКАЯ ГЕНЕРАЦИЯ ПОРТОВ ---
+            # --- 0. API PORT (УПРАВЛЕНИЕ) ---
+            # remnaware api port
+            - containerPort: {{ .Values.node.apiPort }}
+              name: api-port
+              protocol: TCP
+              hostPort: {{ .Values.node.apiPort }}
+
+            # --- АВТОМАТИЧЕСКАЯ ГЕНЕРАЦИЯ ПОРТОВ (ТРАФИК) ---
             {{- range .Values.inbounds }}
             
             # 1. TCP правило
-            # Имя порта должно быть <= 15 символов. Используем номер порта (tcp-10001).
             - containerPort: {{ .port }}
               name: tcp-{{ .port }}
               protocol: TCP
@@ -77,8 +83,6 @@ spec:
               name: udp-{{ .port }}
               protocol: UDP
               hostPort: {{ .port }}
-            {{- end }}
-
             {{- end }}
 
           volumeMounts:
