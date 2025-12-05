@@ -62,21 +62,21 @@ spec:
             # --- АВТОМАТИЧЕСКАЯ ГЕНЕРАЦИЯ ПОРТОВ ---
             {{- range .Values.inbounds }}
             
-            # 1. TCP правило (Создается всегда)
+            # 1. TCP правило
+            # Имя порта должно быть <= 15 символов. Используем номер порта (tcp-10001).
             - containerPort: {{ .port }}
-              name: {{ .name }}-tcp
+              name: tcp-{{ .port }}
               protocol: TCP
               {{- if eq .mode "direct" }}
-              hostPort: {{ .port }} # Биндим TCP на хост
+              hostPort: {{ .port }}
               {{- end }}
 
             # 2. UDP правило (Только для direct)
-            # Shadowsocks и VLESS требуют UDP для полноценной работы
             {{- if eq .mode "direct" }}
             - containerPort: {{ .port }}
-              name: {{ .name }}-udp
+              name: udp-{{ .port }}
               protocol: UDP
-              hostPort: {{ .port }} # Биндим UDP на хост
+              hostPort: {{ .port }}
             {{- end }}
 
             {{- end }}
