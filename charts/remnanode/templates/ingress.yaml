@@ -71,7 +71,7 @@ spec:
       services:
         - name: {{ $.Release.Name }}
           port: {{ .port }}
-ы          passHostHeader: true
+          passHostHeader: true
           scheme: h2c
   tls:
     certResolver: le
