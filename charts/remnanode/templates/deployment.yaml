@@ -80,15 +80,6 @@ spec:
             {{- end }}
 
             {{- end }}
-            
-            # Хак для поддержки UDP на тех же портах (Shadowsocks часто требует оба)
-            {{- if eq .mode "direct" }}
-            - containerPort: {{ .port }}
-              name: {{ .name }}-udp
-              protocol: UDP
-              hostPort: {{ .port }} # Прямой доступ UDP
-            {{- end }}
-            {{- end }}
 
           volumeMounts:
             - name: xray-data
