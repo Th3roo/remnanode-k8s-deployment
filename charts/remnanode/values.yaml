@@ -3,7 +3,7 @@ website:
   pullPolicy: Always
 
 node:
-  image: remnawave/node:latest
+  image: remnawave/node:2.3.0
   apiPort: 2222
 
 # Main domain for website/fallback
