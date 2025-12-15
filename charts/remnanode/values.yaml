@@ -1,10 +1,24 @@
 website:
   image: th3ro/remnanode_website:latest
   pullPolicy: Always
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
 
 node:
   image: remnawave/node:2.3.0
   apiPort: 2222
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1024Mi"
 
 # Main domain for website/fallback
 domain: "example.com"

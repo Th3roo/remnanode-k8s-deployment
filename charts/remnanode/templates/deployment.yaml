@@ -45,6 +45,8 @@ spec:
           ports:
             - containerPort: 80
               name: http
+          resources:
+            {{- toYaml .Values.website.resources | nindent 12 }}
 
         # 2. Remnanode Xray Core
         - name: remnanode
@@ -62,6 +64,8 @@ spec:
                   key: SECRET_KEY
             - name: XRAY_LOCATION_ASSET
               value: /usr/local/bin
+          resources:
+            {{- toYaml .Values.node.resources | nindent 12 }}
           ports:
             # Management API Port (exposed via HostPort for mTLS)
             - containerPort: {{ .Values.node.apiPort }}
