@@ -23,8 +23,28 @@ fi
 
 # Configure access (Persistent)
 if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+    # 1. Export for current session
     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
     chmod 644 /etc/rancher/k3s/k3s.yaml
+
+    # 2. Configure for Root (Current execution context)
+    mkdir -p ~/.kube
+    cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+    chmod 600 ~/.kube/config
+
+    # 3. Configure for SUDO_USER (The user who ran sudo)
+    if [ -n "$SUDO_USER" ]; then
+        USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+        if [ -d "$USER_HOME" ]; then
+            mkdir -p "$USER_HOME/.kube"
+            cp /etc/rancher/k3s/k3s.yaml "$USER_HOME/.kube/config"
+            
+            USER_GROUP=$(id -gn "$SUDO_USER")
+            chown -R "$SUDO_USER:$USER_GROUP" "$USER_HOME/.kube"
+            chmod 600 "$USER_HOME/.kube/config"
+            echo ">>> Configured kubectl/helm access for user: $SUDO_USER"
+        fi
+    fi
 else
     echo "ERROR: K3s config not found!"
     exit 1
