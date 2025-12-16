@@ -41,8 +41,6 @@ spec:
   routes:
     - match: Host(`{{ $.Values.domain }}`) && PathPrefix(`{{ .path }}`)
       kind: Rule
-      middlewares:
-        - name: {{ $.Release.Name }}-ws-headers
       services:
         - name: {{ $.Release.Name }}
           port: {{ .port }}
