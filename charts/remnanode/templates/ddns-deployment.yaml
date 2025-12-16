@@ -30,7 +30,7 @@ spec:
               memory: "64Mi"
           env:
             - name: CONFIG_PATH
-              value: "/etc/cloudflare-ddns/config.json"
+              value: "/etc/cloudflare-ddns/"
           volumeMounts:
             - name: config-volume
               mountPath: /etc/cloudflare-ddns
