@@ -1,0 +1,42 @@
+{{- if .Values.cloudflare.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ddns
+  labels:
+    app: {{ .Release.Name }}-ddns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-ddns
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-ddns
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/ddns-secret.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: ddns
+          image: timothyjmiller/cloudflare-ddns:latest
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+          env:
+            - name: CONFIG_PATH
+              value: "/etc/cloudflare-ddns/config.json"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/cloudflare-ddns
+              readOnly: true
+      volumes:
+        - name: config-volume
+          secret:
+            secretName: {{ .Release.Name }}-ddns-config
+{{- end }}

@@ -35,3 +35,9 @@ secretKey: ""
 
 inbounds: []
 # Note: Configuration is handled via secrets.yaml
+
+cloudflare:
+  enabled: true
+  zoneId: "" 
+  apiToken: "" 
+  recordName: ""
