@@ -1,20 +1,14 @@
-# Запускаем Traefik на каждой ноде (DaemonSet)
 deployment:
   kind: DaemonSet
 
-# Самое важное: слушаем порты ноды напрямую (экономим $18/мес на LB)
 hostNetwork: true
-
-# Отключаем создание Cloud Load Balancer
 service:
   enabled: false
 
-# Явно указываем порты, которые нужно забиндить на хосте
 ports:
   web:
     port: 80
     hostPort: 80
-    expose: true
     redirections:
       entryPoint:
         to: websecure
@@ -23,23 +17,18 @@ ports:
   websecure:
     port: 443
     hostPort: 443
-    expose: true
-    # Включаем HTTP/3 (QUIC) для понтов и скорости
     http3:
       enabled: true
 
-# Включаем поддержку CRD (IngressRoute)
 providers:
   kubernetesCRD:
     enabled: true
     allowCrossNamespace: true
 
-# Логи (можно поменять на DEBUG при проблемах)
 logs:
   general:
     level: INFO
 
-# Сохраняем сертификаты на диск (через hostPath или PVC)
 persistence:
   enabled: true
   path: /data
