@@ -2,6 +2,7 @@
 set -e
 
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # Check for secrets file
@@ -23,28 +24,11 @@ fi
 
 # Configure access (Persistent)
 if [ -f /etc/rancher/k3s/k3s.yaml ]; then
-    # 1. Export for current session
     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
     chmod 644 /etc/rancher/k3s/k3s.yaml
-
-    # 2. Configure for Root (Current execution context)
     mkdir -p ~/.kube
     cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
     chmod 600 ~/.kube/config
-
-    # 3. Configure for SUDO_USER (The user who ran sudo)
-    if [ -n "$SUDO_USER" ]; then
-        USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-        if [ -d "$USER_HOME" ]; then
-            mkdir -p "$USER_HOME/.kube"
-            cp /etc/rancher/k3s/k3s.yaml "$USER_HOME/.kube/config"
-            
-            USER_GROUP=$(id -gn "$SUDO_USER")
-            chown -R "$SUDO_USER:$USER_GROUP" "$USER_HOME/.kube"
-            chmod 600 "$USER_HOME/.kube/config"
-            echo ">>> Configured kubectl/helm access for user: $SUDO_USER"
-        fi
-    fi
 else
     echo "ERROR: K3s config not found!"
     exit 1
@@ -56,35 +40,86 @@ if ! command -v helm &> /dev/null; then
     curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 fi
 
-# 3. Traefik Check
-echo -e "${GREEN}>>> Waiting for Traefik initialization...${NC}"
-TIMEOUT=0
-while ! kubectl get crd ingressroutes.traefik.io &> /dev/null; do
-    echo "Waiting for Traefik CRDs... (${TIMEOUT}s)"
-    sleep 5
-    TIMEOUT=$((TIMEOUT+5))
-    if [ $TIMEOUT -ge 120 ]; then
-        echo "ERROR: Traefik failed to start within 120s."
-        exit 1
-    fi
-done
-echo -e "${GREEN}>>> Traefik is ready.${NC}"
+# 3. Traefik Check & Setup
+echo -e "${GREEN}>>> preparing Traefik...${NC}"
 
-# 4. Configure SSL Email
+# Extract Email and Domain
 EMAIL=$(grep 'email:' secrets.yaml | awk '{print $2}' | tr -d '"')
+DOMAIN=$(grep 'domain:' secrets.yaml | awk '{print $2}' | tr -d '"')
+
+if [ -z "$EMAIL" ] || [ -z "$DOMAIN" ]; then
+    echo "ERROR: Email or Domain not found in secrets.yaml"
+    exit 1
+fi
+
+echo -e "${GREEN}>>> Configuring Traefik with email: $EMAIL...${NC}"
+
+# Create Secret
 kubectl create secret generic traefik-acme-secret \
   --from-literal=email=$EMAIL \
   --namespace kube-system \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# Apply Config
 kubectl apply -f configs/traefik-config.yaml
 
+# 4. ROBUST WAIT: Ensure Traefik is restarted with new config
+echo -e "${GREEN}>>> Waiting for Traefik to reload with ACME settings...${NC}"
+
+# Force restart to pick up changes immediately if HelmChartConfig takes too long
+kubectl rollout restart deployment/traefik -n kube-system
+
+# Wait for the rollout to actually finish
+echo "Waiting for Traefik deployment rollout..."
+kubectl rollout status deployment/traefik -n kube-system --timeout=180s
+
+# Double check readiness check
+echo "Verifying Traefik readiness..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=traefik -n kube-system --timeout=60s
+
+# Give Traefik internal processes (ACME provider) a moment to initialize
+echo -e "${YELLOW}>>> Pausing 10s to let Traefik ACME engine initialize...${NC}"
+sleep 10
+
 # 5. Deploy Application
-echo -e "${GREEN}>>> Deploying RemnaNode...${NC}"
+echo -e "\n${GREEN}>>> Deploying RemnaNode...${NC}"
 helm upgrade --install remnanode ./charts/remnanode \
   --namespace remnanode \
   --create-namespace \
   -f secrets.yaml
 
-echo -e "${GREEN}>>> Deployment successful! Pod status:${NC}"
-kubectl get pods -n remnanode
+# 6. VERIFY SSL CERTIFICATE
+echo -e "\n${GREEN}>>> Waiting for Let's Encrypt Certificate issuance...${NC}"
+echo "Checking domain: $DOMAIN"
+echo "This may take up to 60-90 seconds."
+
+MAX_CHECKS=30
+CHECK_COUNT=0
+CERT_READY=0
+
+while [ $CHECK_COUNT -lt $MAX_CHECKS ]; do
+    # Check the issuer of the certificate
+    # -k allows curl to connect even if insecure, -v shows handshake
+    ISSUER=$(curl -k -v "https://$DOMAIN" 2>&1 | grep "issuer:" | head -n 1)
+    
+    if [[ "$ISSUER" == *"Let's Encrypt"* ]]; then
+        echo -e "\n${GREEN}>>> SSL Certificate Verified! Issuer: Let's Encrypt${NC}"
+        CERT_READY=1
+        break
+    elif [[ "$ISSUER" == *"Traefik"* ]]; then
+         echo -ne "${YELLOW}.${NC}" # Still default cert
+    else
+         echo -ne "${YELLOW}?${NC}" # Connection refused or other error
+    fi
+    
+    sleep 5
+    CHECK_COUNT=$((CHECK_COUNT+1))
+done
+
+if [ $CERT_READY -eq 0 ]; then
+    echo -e "\n${YELLOW}WARNING: SSL Verification timed out.${NC}"
+    echo "The certificate might still be issuing in the background."
+    echo "Check logs with: kubectl logs -f -n kube-system -l app.kubernetes.io/name=traefik"
+else
+    echo -e "${GREEN}>>> Deployment successful! Your node is ready at https://$DOMAIN${NC}"
+fi
