@@ -10,12 +10,17 @@ spec:
       general:
         level: DEBUG
     
-    # Persistence for ACME (SSL certificates)
+    # Persistence for ACME
     persistence:
       enabled: true
       path: /acme
       size: 128Mi
     
+    # Fix permissions for ACME json (Critical for K3s)
+    deployment:
+      podSecurityContext:
+        fsGroup: 65532
+
     # Let's Encrypt arguments
     additionalArguments:
       - "--certificatesresolvers.le.acme.tlschallenge=true"
@@ -23,7 +28,7 @@ spec:
       - "--certificatesresolvers.le.acme.email=$(TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL)"
       - "--certificatesresolvers.le.acme.caServer=https://acme-v02.api.letsencrypt.org/directory"
 
-    # Inject Email from Secrets
+    # Inject Email
     env:
       - name: TRAEFIK_CERTIFICATESRESOLVERS_LE_ACME_EMAIL
         valueFrom:
@@ -31,7 +36,7 @@ spec:
             name: traefik-acme-secret
             key: email
     
-    # HTTP -> HTTPS Redirection (Traefik v3 syntax)
+    # HTTP -> HTTPS Redirection
     ports:
       web:
         redirections:
